@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Hàm thực hiện yêu cầu faucet với retry
 async function requestFaucet(address) {
   const ora = (await import('ora')).default; // Import động
-  const url = 'https://api.example.com/faucet'; // Thay bằng URL thực tế
+  const url = 'https://faucet.testnet.sui.io/api/faucet'; // Thay bằng URL thực tế
   const payload = { address };
   const spinner = ora(`Đang gửi yêu cầu đến faucet...`).start();
 
