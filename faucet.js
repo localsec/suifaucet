@@ -2,9 +2,17 @@ const axios = require('axios');
 const chalk = require('chalk');
 const fs = require('fs');
 const path = require('path');
-const HttpsProxyAgent = require('https-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 // ===== Banner LOCAL SEC =====
+console.log(chalk.green.bold(`
+██╗      ██████╗  ██████╗  █████╗  ██╗      ███████╗███████╗
+██║     ██╔═══██╗██╔════╝ ██╔══██╗██║      ██╔════╝██╔════╝
+██║     ██║   ██║██║  ███╗███████║██║█████╗█████╗  ███████╗
+██║     ██║   ██║██║   ██║██╔══██║██║╚════╝██╔══╝  ╚════██║
+███████╗╚██████╔╝╚██████╔╝╚██████╔╝██║  ██║███████╗███████║
+╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚══════╝╚══════╝
+`));
 
 console.log(chalk.green.bold(`Auto Sui Faucet by LOCAL SEC\n`));
 
@@ -36,7 +44,7 @@ const randomProxy = () => proxies[Math.floor(Math.random() * proxies.length)];
 // ===== Claim Faucet =====
 async function claimFaucet(address) {
     const proxy = randomProxy();
-    const agent = proxy ? new HttpsProxyAgent(proxy) : undefined;
+    const agent = proxy ? HttpsProxyAgent(proxy) : undefined;
 
     try {
         const res = await axios.post(faucetUrl, { recipient: address }, {
