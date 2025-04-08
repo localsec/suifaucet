@@ -1,9 +1,8 @@
 const axios = require('axios');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
-const cliProgress = require('cli-progress');
 
-// Hàm ngủ delay
+// Hàm sleep delay
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Hàm gọi Faucet
@@ -20,7 +19,7 @@ async function faucetRequest(axiosInstance, recipient) {
         );
 
         if (!response.data.error) {
-            console.log(chalk.green('<================== Faucet thành công ==================>\n'));
+            console.log(chalk.green(`<=== Faucet thành công cho ví: ${recipient} ===>\n`));
             return true;
         } else {
             console.log(chalk.red('Faucet thất bại:'), response.data.error, '\n');
@@ -32,15 +31,15 @@ async function faucetRequest(axiosInstance, recipient) {
     }
 }
 
-// Giao diện chính CLI
+// Giao diện CLI
 async function main() {
-    console.log(chalk.cyan.bold('====== SUI FAUCET TOOL ======'));
+    console.log(chalk.cyan.bold('====== AUTO SUI FAUCET TOOL ======'));
 
     const { address } = await inquirer.prompt([
         {
             type: 'input',
             name: 'address',
-            message: chalk.yellow('Nhập địa chỉ ví SUI muốn nhận token faucet:'),
+            message: chalk.yellow('Nhập địa chỉ ví SUI muốn spam faucet:'),
             validate: input => input.length > 0 || 'Địa chỉ không được để trống!',
         },
     ]);
@@ -51,26 +50,7 @@ async function main() {
         }
     });
 
-    console.log(chalk.blue('Đang gửi yêu cầu đến Faucet...'));
-
-    const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-    bar.start(10, 0);
-    for (let i = 0; i < 10; i++) {
-        await sleep(100);
-        bar.increment();
-    }
-    bar.stop();
-
-    const success = await faucetRequest(axiosInstance, address);
-
-    if (success) {
-        console.log(chalk.green.bold('Đã gửi yêu cầu Faucet thành công! Kiểm tra ví của bạn nhé.'));
-    } else {
-        console.log(chalk.red.bold('Gửi yêu cầu Faucet thất bại. Vui lòng thử lại sau.'));
-    }
-}
-
-main().catch(error => {
-    console.error(chalk.red(`Lỗi không xác định: ${error.message}`));
-    process.exit(1);
-});
+    let count = 0;
+    while (true) {
+        count++;
+        console.log(ch
