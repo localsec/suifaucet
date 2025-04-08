@@ -1,13 +1,14 @@
+// main.js
 const axios = require('axios');
-const HttpsProxyAgent = require('https-proxy-agent');
-const fs = require('fs').promises; // Sử dụng fs promises cho async/await
+const { HttpsProxyAgent } = require('https-proxy-agent'); // Sửa cách import
+const fs = require('fs').promises;
 
 // Configuration
 const config = {
     faucetUrl: 'https://faucet.testnet.sui.io/gas',
-    interval: 10 * 1000, // 10 seconds
+    interval: 10 * 1000,
     maxRetries: 3,
-    retryDelay: 2000 // 2 seconds
+    retryDelay: 2000
 };
 
 // Hàm đọc và parse file text
@@ -19,8 +20,15 @@ async function loadWallets() {
 async function loadProxies() {
     const data = await fs.readFile('proxies.txt', 'utf8');
     return data.trim().split('\n').filter(line => line.trim()).map(line => {
-        const [host, port, username, password] = line.split(':');
-        const proxy = { host, port: parseInt(port) };
+        const parts = line.split(':');
+        if (parts.length < 2) {
+            throw new Error(`Invalid proxy format: ${line}`);
+        }
+        const [host, port, username, password] = parts;
+        const proxy = { 
+            host, 
+            port: parseInt(port) || 8080 // Default port nếu không parse được
+        };
         if (username && password) {
             proxy.auth = { username, password };
         }
@@ -39,9 +47,9 @@ function createAxiosInstance(proxy) {
         ? `http://${proxy.auth.username}:${proxy.auth.password}@${proxy.host}:${proxy.port}`
         : `http://${proxy.host}:${proxy.port}`;
     
-    const proxyAgent = new HttpsProxyAgent(proxyUrl);
+    const agent = new HttpsProxyAgent(proxyUrl); // Sử dụng đúng constructor
     return axios.create({
-        httpsAgent: proxyAgent,
+        httpsAgent: agent,
         proxy: false,
         timeout: 10000
     });
@@ -92,7 +100,6 @@ async function startClaiming() {
         const wallets = await loadWallets();
         const proxyList = await loadProxies();
 
-        // Validate
         if (wallets.length === 0 || !wallets[0].startsWith('0x')) {
             console.error('No valid wallet addresses found in wallets.txt');
             return;
@@ -103,7 +110,7 @@ async function startClaiming() {
             return;
         }
 
-        const walletAddress = wallets[0]; // Hiện tại chỉ dùng wallet đầu tiên
+        const walletAddress = wallets[0];
         console.log(`[${new Date().toISOString()}] Starting faucet claim for ${walletAddress}`);
 
         setInterval(async () => {
