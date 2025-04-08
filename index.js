@@ -1,12 +1,35 @@
 const axios = require('axios');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
+const fs = require('fs');
+const HttpsProxyAgent = require('https-proxy-agent');
 
 // Hàm sleep delay
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Hàm gọi Faucet
-async function faucetRequest(axiosInstance, recipient) {
+// Load proxy từ file
+const loadProxies = () => {
+    const proxies = fs.readFileSync('proxy.txt', 'utf8')
+        .split('\n')
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+    return proxies;
+};
+
+// Tạo instance axios có proxy
+const createAxiosWithProxy = (proxy) => {
+    const proxyUrl = proxy.includes('@') ? `http://${proxy}` : `http://${proxy}`;
+    const agent = new HttpsProxyAgent(proxyUrl);
+
+    return axios.create({
+        httpsAgent: agent,
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+    });
+};
+
+// Hàm gửi Faucet Request
+async function faucetRequest(axiosInstance, recipient, proxy) {
     try {
         const response = await axiosInstance.post(
             'https://faucet.testnet.sui.io/v1/gas',
@@ -14,26 +37,25 @@ async function faucetRequest(axiosInstance, recipient) {
                 FixedAmountRequest: {
                     recipient,
                 },
-            },
-            { timeout: 10000 }
+            }
         );
 
         if (!response.data.error) {
-            console.log(chalk.green(`<=== Faucet thành công cho ví: ${recipient} ===>\n`));
+            console.log(chalk.green(`<=== Faucet thành công cho ví: ${recipient} [Proxy: ${proxy}] ===>\n`));
             return true;
         } else {
             console.log(chalk.red('Faucet thất bại:'), response.data.error, '\n');
             return false;
         }
     } catch (error) {
-        console.log(chalk.red('Faucet thất bại:'), error.response?.data || error.message, '\n');
+        console.log(chalk.red(`Faucet thất bại qua proxy: ${proxy}`), error.response?.data || error.message, '\n');
         return false;
     }
 }
 
-// Giao diện CLI
+// Hàm chính
 async function main() {
-    console.log(chalk.cyan.bold('====== AUTO SUI FAUCET TOOL ======'));
+    console.log(chalk.cyan.bold('====== AUTO SUI FAUCET TOOL - PROXY MODE ======'));
 
     const { address } = await inquirer.prompt([
         {
@@ -44,21 +66,25 @@ async function main() {
         },
     ]);
 
-    const axiosInstance = axios.create({
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    });
+    const proxies = loadProxies();
+    if (proxies.length === 0) {
+        console.log(chalk.red('Không tìm thấy proxy trong proxy.txt'));
+        process.exit(1);
+    }
 
     let count = 0;
     while (true) {
         count++;
+
+        const proxy = proxies[Math.floor(Math.random() * proxies.length)];
+        const axiosInstance = createAxiosWithProxy(proxy);
+
         console.log(chalk.blue(`Lần faucet thứ ${count} cho ví: ${address}`));
 
-        await faucetRequest(axiosInstance, address);
+        await faucetRequest(axiosInstance, address, proxy);
 
         console.log(chalk.yellow(`Đang chờ 10 giây trước khi faucet tiếp...\n`));
-        await sleep(10000); // Delay 10 giây
+        await sleep(10000);
     }
 }
 
