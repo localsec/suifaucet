@@ -6,14 +6,15 @@ const fs = require('fs');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Hàm kiểm tra số dư ví SUI
 async function requestRpc(address) {
   const ora = (await import('ora')).default;
-  const url = 'https://fullnode.testnet.sui.io:443';
-  
+  const url = 'https://fullnode.testnet.sui.io:443';  // URL RPC mới nhất
+
   const spinner = ora(`Đang kiểm tra số dư ví: ${address} ...`).start();
 
   try {
-    // Ưu tiên method sui_getAllBalances
+    // Thử với method sui_getAllBalances trước
     let payload = {
       jsonrpc: '2.0',
       id: 1,
@@ -26,9 +27,9 @@ async function requestRpc(address) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-    // Nếu không hỗ trợ method => thử lại với sui_getBalance
+    // Nếu RPC không hỗ trợ => fallback sang sui_getBalance
     if (response.data.error && response.data.error.code === -32601) {
-      spinner.warn(chalk.yellow('RPC không hỗ trợ method sui_getAllBalances => Thử lại với sui_getBalance'));
+      spinner.warn(chalk.yellow('RPC không hỗ trợ sui_getAllBalances => Thử lại với sui_getBalance'));
       payload = {
         jsonrpc: '2.0',
         id: 1,
@@ -68,6 +69,7 @@ async function requestRpc(address) {
   }
 }
 
+// Giao diện chính CLI
 async function main() {
   console.log(chalk.cyan.bold('====== SUI RPC Balance Checker ======'));
 
