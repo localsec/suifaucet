@@ -1,0 +1,3 @@
+requests>=2.31.0    # Tương đương axios/node-fetch
+tqdm>=4.66.3        # Tương đương cli-progress
+rich>=13.7.1        # Tương đương chalk/ora/inquirer
