@@ -2,12 +2,12 @@ const axios = require('axios');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 const fs = require('fs');
-const HttpsProxyAgent = require('https-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
-// Hàm sleep delay
+// Hàm delay
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Load proxy từ file
+// Đọc danh sách proxy từ file
 const loadProxies = () => {
     const proxies = fs.readFileSync('proxy.txt', 'utf8')
         .split('\n')
@@ -16,7 +16,7 @@ const loadProxies = () => {
     return proxies;
 };
 
-// Tạo instance axios có proxy
+// Tạo axios instance với proxy
 const createAxiosWithProxy = (proxy) => {
     const proxyUrl = proxy.includes('@') ? `http://${proxy}` : `http://${proxy}`;
     const agent = new HttpsProxyAgent(proxyUrl);
@@ -28,7 +28,7 @@ const createAxiosWithProxy = (proxy) => {
     });
 };
 
-// Hàm gửi Faucet Request
+// Hàm gửi faucet
 async function faucetRequest(axiosInstance, recipient, proxy) {
     try {
         const response = await axiosInstance.post(
@@ -53,7 +53,7 @@ async function faucetRequest(axiosInstance, recipient, proxy) {
     }
 }
 
-// Hàm chính
+// Chương trình chính
 async function main() {
     console.log(chalk.cyan.bold('====== AUTO SUI FAUCET TOOL - PROXY MODE ======'));
 
