@@ -53,4 +53,16 @@ async function main() {
     let count = 0;
     while (true) {
         count++;
-        console.log(ch
+        console.log(chalk.blue(`Lần faucet thứ ${count} cho ví: ${address}`));
+
+        await faucetRequest(axiosInstance, address);
+
+        console.log(chalk.yellow(`Đang chờ 10 giây trước khi faucet tiếp...\n`));
+        await sleep(10000); // Delay 10 giây
+    }
+}
+
+main().catch(error => {
+    console.error(chalk.red(`Lỗi không xác định: ${error.message}`));
+    process.exit(1);
+});
