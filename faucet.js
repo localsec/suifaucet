@@ -1,54 +1,64 @@
 const axios = require('axios');
+const chalk = require('chalk');
 const fs = require('fs');
 const path = require('path');
 
-// CONFIG
-const faucetUrl = 'https://faucet.testnet.sui.io/gas';
-const minDelayMs = 10_000;  // Delay nhỏ nhất 10 giây
-const maxDelayMs = 30_000;  // Delay lớn nhất 30 giây
+// ===== Banner LocalSec =====
+console.log(chalk.green.bold(`
+██╗      ██████╗  ██████╗  █████╗  ███████╗███████╗
+██║     ██╔═══██╗██╔════╝ ██╔══██╗ ██╔════╝██╔════╝
+██║     ██║   ██║██║  ███╗███████║ █████╗  ███████╗
+██║     ██║   ██║██║   ██║██╔══██║ ██╔══╝  ╚════██║
+███████╗╚██████╔╝╚██████╔╝██║  ██║ ███████╗███████║
+╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝ ╚══════╝╚══════╝
+`));
 
-// Load danh sách ví từ file wallets.txt
+console.log(chalk.green.bold(`Auto Sui Faucet by LocalSec\n`));
+
+// ===== Config =====
+const faucetUrl = 'https://faucet.testnet.sui.io/gas';
+const minDelayMs = 10_000;  // 10s
+const maxDelayMs = 30_000;  // 30s
+
 const walletsPath = path.join(__dirname, 'wallets.txt');
 const wallets = fs.readFileSync(walletsPath, 'utf-8')
     .split('\n')
     .map(line => line.trim())
     .filter(line => line !== '');
 
-console.log(`Loaded ${wallets.length} wallets.`);
+console.log(chalk.yellow(`Loaded ${wallets.length} wallets.`));
 
-// Hàm delay
+// ===== Utility =====
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Hàm random delay
 const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
 
-// Hàm claim faucet
+// ===== Claim Faucet =====
 async function claimFaucet(address) {
     try {
         const res = await axios.post(faucetUrl, { recipient: address });
 
         if (res.status === 200) {
-            console.log(`[${new Date().toISOString()}] ✅ Success claim for ${address}`);
+            console.log(chalk.green(`[${new Date().toISOString()}] ✅ Success claim for ${address}`));
         } else {
-            console.log(`[${new Date().toISOString()}] ❌ Failed claim for ${address} - Status: ${res.status}`);
+            console.log(chalk.red(`[${new Date().toISOString()}] ❌ Failed claim for ${address} - Status: ${res.status}`));
         }
     } catch (err) {
         if (err.response && err.response.status === 429) {
-            console.log(`[${new Date().toISOString()}] ⚠️ Rate limit 429 for ${address}`);
+            console.log(chalk.yellow(`[${new Date().toISOString()}] ⚠️ Rate limit 429 for ${address}`));
         } else {
-            console.log(`[${new Date().toISOString()}] ❌ Error claim for ${address} - ${err.message}`);
+            console.log(chalk.red(`[${new Date().toISOString()}] ❌ Error claim for ${address} - ${err.message}`));
         }
     }
 }
 
-// Auto loop claim tất cả ví
+// ===== Main Loop =====
 async function startFaucet() {
     while (true) {
         for (const address of wallets) {
             await claimFaucet(address);
 
             const delay = randomDelay(minDelayMs, maxDelayMs);
-            console.log(`Sleeping ${delay / 1000}s...`);
+            console.log(chalk.cyan(`Sleeping ${delay / 1000}s...\n`));
             await sleep(delay);
         }
     }
