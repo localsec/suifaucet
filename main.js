@@ -4,7 +4,7 @@ const cliProgress = require('cli-progress');
 const inquirer = require('inquirer');
 const fs = require('fs');
 
-// Đọc cấu hình từ config.json (chỉ giữ delayMin/delayMax nếu cần)
+// Đọc cấu hình từ config.json (nếu cần)
 const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
 // Hàm sleep để tạo độ trễ
@@ -12,21 +12,28 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Hàm thực hiện yêu cầu faucet
 async function requestFaucet(address) {
-  const ora = (await import('ora')).default; // Import động
-  const url = 'https://faucet.testnet.sui.io/api/faucet'; // Thay bằng URL thực tế
-  const payload = { address };
+  const ora = (await import('ora')).default;
+  const url = 'https://faucet.testnet.sui.io/gas'; // Endpoint thực tế
+  const payload = {
+    FixedAmountRequest: {
+      recipient: address
+    }
+  };
   
-  while (true) { // Vòng lặp vô hạn
+  while (true) {
     const spinner = ora(`Đang gửi yêu cầu đến faucet...`).start();
     try {
-      const response = await axios.post(url, payload, { timeout: 10000 });
+      const response = await axios.post(url, payload, {
+        timeout: 10000,
+        headers: { 'Content-Type': 'application/json' }
+      });
       spinner.succeed(chalk.green(`Thành công: ${JSON.stringify(response.data)}`));
     } catch (error) {
       spinner.fail(chalk.red(`Lỗi: ${error.message}`));
     }
     spinner.stop();
     console.log(chalk.yellow('Chờ 10 giây trước khi thử lại...'));
-    await sleep(10000); // Đợi 10 giây trước lần thử tiếp theo
+    await sleep(10000);
   }
 }
 
@@ -55,7 +62,7 @@ async function main() {
   console.log(chalk.green('Bắt đầu thử faucet liên tục mỗi 10 giây...'));
   console.log(chalk.yellow('Nhấn Ctrl+C để dừng chương trình.'));
 
-  await requestFaucet(address); // Gọi hàm thử liên tục
+  await requestFaucet(address);
 }
 
 main().catch(error => {
