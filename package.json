@@ -6,13 +6,6 @@
   "scripts": {
     "start": "node faucet.js"
   },
-  "keywords": [
-    "sui",
-    "faucet",
-    "auto",
-    "testnet",
-    "script"
-  ],
   "author": "yourusername",
   "license": "MIT",
   "dependencies": {
