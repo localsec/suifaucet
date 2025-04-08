@@ -1,0 +1,6 @@
+{
+  "delayMin": 4000,
+  "delayMax": 7000,
+  "retryCount": 3,
+  "retryDelay": 2000
+}
