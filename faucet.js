@@ -1,6 +1,6 @@
 // main.js
 const axios = require('axios');
-const { HttpsProxyAgent } = require('https-proxy-agent'); // Sửa cách import
+const { HttpsProxyAgent } = require('https-proxy-agent');
 const fs = require('fs').promises;
 
 // Configuration
@@ -26,8 +26,8 @@ async function loadProxies() {
         }
         const [host, port, username, password] = parts;
         const proxy = { 
-            host, 
-            port: parseInt(port) || 8080 // Default port nếu không parse được
+            host: host || 'localhost', // Đảm bảo host không undefined
+            port: parseInt(port) || 8080 
         };
         if (username && password) {
             proxy.auth = { username, password };
@@ -43,11 +43,17 @@ function getRandomProxy(proxyList) {
 
 // Hàm tạo axios instance với proxy
 function createAxiosInstance(proxy) {
+    // Kiểm tra proxy hợp lệ
+    if (!proxy.host || !proxy.port) {
+        throw new Error('Invalid proxy configuration');
+    }
+
     const proxyUrl = proxy.auth 
         ? `http://${proxy.auth.username}:${proxy.auth.password}@${proxy.host}:${proxy.port}`
         : `http://${proxy.host}:${proxy.port}`;
     
-    const agent = new HttpsProxyAgent(proxyUrl); // Sử dụng đúng constructor
+    console.log(`Using proxy: ${proxyUrl}`); // Debug proxy URL
+    const agent = new HttpsProxyAgent(proxyUrl);
     return axios.create({
         httpsAgent: agent,
         proxy: false,
