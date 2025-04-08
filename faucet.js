@@ -1,69 +1,80 @@
-const axios = require('axios');
-const chalk = require('chalk');
+const fetch = require('node-fetch');
+const HttpsProxyAgent = require('https-proxy-agent');
+const winston = require('winston');
 const fs = require('fs');
-const path = require('path');
-const { HttpsProxyAgent } = require('https-proxy-agent');
 
-// ===== Banner LOCAL SEC =====
+// Config
+const ADDRESS = '0xYourWalletAddressHere';  // Thay ví vào đây
+const FAUCET_URL = 'https://faucet.testnet.sui.io/gas'; // Link faucet API
+const DELAY = 10 * 1000; // Delay mỗi lần claim (ms)
 
-console.log(chalk.green.bold(`Auto Sui Faucet by LOCAL SEC\n`));
+// Proxy list
+const proxies = fs.readFileSync('proxies.txt', 'utf-8')
+  .split('\n')
+  .filter(Boolean);
 
-// ===== Config =====
-const faucetUrl = 'https://faucet.testnet.sui.io/gas';
-const minDelayMs = 10_000;  
-const maxDelayMs = 30_000;  
+// User-Agent list (random cho đẹp)
+const userAgents = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+  'Mozilla/5.0 (X11; Linux x86_64)',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+];
 
-// Load Wallets
-const wallets = fs.readFileSync(path.join(__dirname, 'wallets.txt'), 'utf-8')
-    .split('\n')
-    .map(x => x.trim())
-    .filter(x => x);
+// Logger setup
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.simple(),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'faucet.log' }),
+  ],
+});
 
-// Load Proxies
-const proxies = fs.readFileSync(path.join(__dirname, 'proxies.txt'), 'utf-8')
-    .split('\n')
-    .map(x => x.trim())
-    .filter(x => x);
-
-console.log(chalk.yellow(`Loaded ${wallets.length} wallets.`));
-console.log(chalk.yellow(`Loaded ${proxies.length} proxies.`));
-
-// ===== Utils =====
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
-const randomProxy = () => proxies[Math.floor(Math.random() * proxies.length)];
-
-// ===== Claim Faucet =====
-async function claimFaucet(address) {
-    const proxy = randomProxy();
-    const agent = proxy ? HttpsProxyAgent(proxy) : undefined;
-
-    try {
-        const res = await axios.post(faucetUrl, { recipient: address }, {
-            httpsAgent: agent,
-            proxy: false
-        });
-
-        if (res.status === 200) {
-            console.log(chalk.green(`[${new Date().toISOString()}] ✅ Claimed for ${address} using proxy ${proxy}`));
-        } else {
-            console.log(chalk.red(`[${new Date().toISOString()}] ❌ Failed ${address} Status ${res.status}`));
-        }
-    } catch (err) {
-        console.log(chalk.red(`[${new Date().toISOString()}] ❌ Error ${address} | Proxy: ${proxy} | ${err.message}`));
-    }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ===== Main Loop =====
-async function main() {
-    while (true) {
-        for (const address of wallets) {
-            await claimFaucet(address);
-            const delay = randomDelay(minDelayMs, maxDelayMs);
-            console.log(chalk.cyan(`Sleeping ${delay / 1000}s...\n`));
-            await sleep(delay);
-        }
+async function claimFaucet(proxy) {
+  try {
+    const agent = proxy ? new HttpsProxyAgent(proxy) : undefined;
+    const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+
+    const res = await fetch(FAUCET_URL, {
+      method: 'POST',
+      agent,
+      body: JSON.stringify({ recipient: ADDRESS }),
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': userAgent,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
+
+    const data = await res.json();
+
+    if (data.error) {
+      throw new Error(`Faucet Error: ${data.error}`);
+    }
+
+    logger.info(`Claim success: ${JSON.stringify(data)}`);
+  } catch (err) {
+    logger.error(`Claim failed: ${err.message}`);
+  }
+}
+
+async function main() {
+  while (true) {
+    const proxy = proxies.length > 0
+      ? proxies[Math.floor(Math.random() * proxies.length)]
+      : undefined;
+
+    logger.info(`Claiming faucet with proxy: ${proxy || 'No Proxy'}`);
+    await claimFaucet(proxy);
+    await sleep(DELAY);
+  }
 }
 
 main();
