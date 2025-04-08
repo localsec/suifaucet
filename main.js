@@ -4,41 +4,29 @@ const cliProgress = require('cli-progress');
 const inquirer = require('inquirer');
 const fs = require('fs');
 
-// Đọc cấu hình từ config.json
+// Đọc cấu hình từ config.json (chỉ giữ delayMin/delayMax nếu cần)
 const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-
-const DELAY_MIN = config.delayMin;
-const DELAY_MAX = config.delayMax;
-const RETRY_COUNT = config.retryCount;
-const RETRY_DELAY = config.retryDelay;
 
 // Hàm sleep để tạo độ trễ
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Hàm thực hiện yêu cầu faucet với retry
+// Hàm thực hiện yêu cầu faucet
 async function requestFaucet(address) {
   const ora = (await import('ora')).default; // Import động
   const url = 'https://faucet.testnet.sui.io/api/faucet'; // Thay bằng URL thực tế
   const payload = { address };
-  const spinner = ora(`Đang gửi yêu cầu đến faucet...`).start();
-
-  for (let attempt = 0; attempt <= RETRY_COUNT; attempt++) {
+  
+  while (true) { // Vòng lặp vô hạn
+    const spinner = ora(`Đang gửi yêu cầu đến faucet...`).start();
     try {
-      spinner.text = `Đang gửi yêu cầu đến faucet... (Lần thử ${attempt + 1})`;
-      await sleep(Math.random() * (DELAY_MAX - DELAY_MIN) + DELAY_MIN);
       const response = await axios.post(url, payload, { timeout: 10000 });
       spinner.succeed(chalk.green(`Thành công: ${JSON.stringify(response.data)}`));
-      return true;
     } catch (error) {
       spinner.fail(chalk.red(`Lỗi: ${error.message}`));
-      if (attempt < RETRY_COUNT) {
-        spinner.start(chalk.yellow(`Thử lại sau ${RETRY_DELAY / 1000} giây...`));
-        await sleep(RETRY_DELAY);
-      } else {
-        spinner.fail(chalk.red('Đã hết số lần thử. Thất bại.'));
-        return false;
-      }
     }
+    spinner.stop();
+    console.log(chalk.yellow('Chờ 10 giây trước khi thử lại...'));
+    await sleep(10000); // Đợi 10 giây trước lần thử tiếp theo
   }
 }
 
@@ -64,13 +52,10 @@ async function main() {
   }
   bar.stop();
 
-  const success = await requestFaucet(address);
+  console.log(chalk.green('Bắt đầu thử faucet liên tục mỗi 10 giây...'));
+  console.log(chalk.yellow('Nhấn Ctrl+C để dừng chương trình.'));
 
-  if (success) {
-    console.log(chalk.green.bold('Hoàn tất! Kiểm tra ví của bạn.'));
-  } else {
-    console.log(chalk.red.bold('Không thể hoàn thành yêu cầu faucet.'));
-  }
+  await requestFaucet(address); // Gọi hàm thử liên tục
 }
 
 main().catch(error => {
