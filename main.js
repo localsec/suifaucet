@@ -2,7 +2,6 @@ const axios = require('axios');
 const chalk = require('chalk');
 const cliProgress = require('cli-progress');
 const inquirer = require('inquirer');
-const ora = require('ora');
 const fs = require('fs');
 
 // Đọc cấu hình từ config.json
@@ -18,14 +17,15 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Hàm thực hiện yêu cầu faucet với retry
 async function requestFaucet(address) {
-  const url = 'https://api.example.com/faucet'; // Thay bằng URL thực tế của SUI Faucet
+  const ora = (await import('ora')).default; // Import động
+  const url = 'https://api.example.com/faucet'; // Thay bằng URL thực tế
   const payload = { address };
   const spinner = ora(`Đang gửi yêu cầu đến faucet...`).start();
 
   for (let attempt = 0; attempt <= RETRY_COUNT; attempt++) {
     try {
       spinner.text = `Đang gửi yêu cầu đến faucet... (Lần thử ${attempt + 1})`;
-      await sleep(Math.random() * (DELAY_MAX - DELAY_MIN) + DELAY_MIN); // Độ trễ ngẫu nhiên
+      await sleep(Math.random() * (DELAY_MAX - DELAY_MIN) + DELAY_MIN);
       const response = await axios.post(url, payload, { timeout: 10000 });
       spinner.succeed(chalk.green(`Thành công: ${JSON.stringify(response.data)}`));
       return true;
@@ -46,7 +46,6 @@ async function requestFaucet(address) {
 async function main() {
   console.log(chalk.cyan.bold('Chào mừng đến với SUI Faucet Tool!'));
 
-  // Prompt tương tác để nhập địa chỉ
   const { address } = await inquirer.prompt([
     {
       type: 'input',
@@ -56,7 +55,6 @@ async function main() {
     },
   ]);
 
-  // Hiển thị progress bar mẫu
   console.log(chalk.blue('Chuẩn bị gửi yêu cầu...'));
   const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
   bar.start(10, 0);
@@ -66,7 +64,6 @@ async function main() {
   }
   bar.stop();
 
-  // Gửi yêu cầu faucet
   const success = await requestFaucet(address);
 
   if (success) {
@@ -76,7 +73,6 @@ async function main() {
   }
 }
 
-// Chạy chương trình
 main().catch(error => {
   console.error(chalk.red(`Lỗi không xác định: ${error.message}`));
   process.exit(1);
