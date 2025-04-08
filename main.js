@@ -10,30 +10,31 @@ const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 // Hàm sleep để tạo độ trễ
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Hàm thực hiện yêu cầu faucet
+// Hàm thực hiện yêu cầu faucet (hoặc RPC)
 async function requestFaucet(address) {
   const ora = (await import('ora')).default;
-  const url = 'https://faucet.testnet.sui.io/gas'; // Endpoint thực tế
+  const url = 'https://fullnode.testnet.sui.io:443'; // RPC URL mới
   const payload = {
     FixedAmountRequest: {
       recipient: address
     }
   };
   
-  while (true) {
-    const spinner = ora(`Đang gửi yêu cầu đến faucet...`).start();
-    try {
-      const response = await axios.post(url, payload, {
-        timeout: 10000,
-        headers: { 'Content-Type': 'application/json' }
-      });
-      spinner.succeed(chalk.green(`Thành công: ${JSON.stringify(response.data)}`));
-    } catch (error) {
+  const spinner = ora(`Đang gửi yêu cầu đến RPC...`).start();
+  try {
+    const response = await axios.post(url, payload, {
+      timeout: 10000,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    spinner.succeed(chalk.green(`Thành công: ${JSON.stringify(response.data)}`));
+    return true;
+  } catch (error) {
+    if (error.response && error.response.status === 429) {
+      spinner.fail(chalk.red('Lỗi: Quá nhiều yêu cầu (429). Vui lòng chờ 1-24 giờ trước khi thử lại.'));
+    } else {
       spinner.fail(chalk.red(`Lỗi: ${error.message}`));
     }
-    spinner.stop();
-    console.log(chalk.yellow('Chờ 10 giây trước khi thử lại...'));
-    await sleep(10000);
+    return false;
   }
 }
 
@@ -59,10 +60,13 @@ async function main() {
   }
   bar.stop();
 
-  console.log(chalk.green('Bắt đầu thử faucet liên tục mỗi 10 giây...'));
-  console.log(chalk.yellow('Nhấn Ctrl+C để dừng chương trình.'));
+  const success = await requestFaucet(address);
 
-  await requestFaucet(address);
+  if (success) {
+    console.log(chalk.green.bold('Hoàn tất! Kiểm tra ví của bạn.'));
+  } else {
+    console.log(chalk.red.bold('Không thể hoàn thành yêu cầu.'));
+  }
 }
 
 main().catch(error => {
