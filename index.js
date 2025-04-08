@@ -4,67 +4,70 @@ const cliProgress = require('cli-progress');
 const inquirer = require('inquirer');
 const fs = require('fs');
 
-// Đọc config (nếu có file config.json)
-let config = {};
-try {
-  config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-} catch (error) {
-  console.log(chalk.yellow('Không tìm thấy file config.json — dùng config mặc định.'));
-}
-
-// Sleep
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Gửi RPC check số dư
 async function requestRpc(address) {
   const ora = (await import('ora')).default;
   const url = 'https://fullnode.testnet.sui.io:443';
-  const payload = {
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'sui_getAllBalances', // Đã sửa method đúng
-    params: [address]
-  };
-
+  
   const spinner = ora(`Đang kiểm tra số dư ví: ${address} ...`).start();
 
   try {
-    const response = await axios.post(url, payload, {
+    // Ưu tiên method sui_getAllBalances
+    let payload = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'sui_getAllBalances',
+      params: [address]
+    };
+
+    let response = await axios.post(url, payload, {
       timeout: 10000,
       headers: { 'Content-Type': 'application/json' }
     });
+
+    // Nếu không hỗ trợ method => thử lại với sui_getBalance
+    if (response.data.error && response.data.error.code === -32601) {
+      spinner.warn(chalk.yellow('RPC không hỗ trợ method sui_getAllBalances => Thử lại với sui_getBalance'));
+      payload = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'sui_getBalance',
+        params: [address, "0x2::sui::SUI"]
+      };
+      response = await axios.post(url, payload, {
+        timeout: 10000,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     if (response.data.error) {
       spinner.fail(chalk.red(`Lỗi RPC: ${JSON.stringify(response.data.error)}`));
       return false;
     }
 
-    const balances = response.data.result;
-    spinner.succeed(chalk.green(`Thành công!`));
-
+    spinner.succeed(chalk.green(`Lấy số dư thành công!`));
     console.log(chalk.yellow('Số dư ví:'));
-    if (balances && balances.coinTypeBalances) {
-      balances.coinTypeBalances.forEach(coin => {
+
+    if (response.data.result.totalBalance) {
+      console.log(chalk.green(`Số dư SUI: ${response.data.result.totalBalance}`));
+    } else if (response.data.result.coinTypeBalances) {
+      response.data.result.coinTypeBalances.forEach(coin => {
         console.log(chalk.cyan(`- Loại coin: ${coin.coinType}`));
         console.log(chalk.green(`  Số dư: ${coin.totalBalance}`));
       });
     } else {
-      console.log(chalk.red('Ví không có số dư hoặc dữ liệu không xác định.'));
+      console.log(chalk.red('Không có số dư hoặc dữ liệu không xác định.'));
     }
 
     return true;
 
   } catch (error) {
-    if (error.response && error.response.status === 429) {
-      spinner.fail(chalk.red('Lỗi: Quá nhiều yêu cầu (429). Vui lòng chờ và thử lại sau.'));
-    } else {
-      spinner.fail(chalk.red(`Lỗi: ${error.message}`));
-    }
+    spinner.fail(chalk.red(`Lỗi: ${error.message}`));
     return false;
   }
 }
 
-// Main
 async function main() {
   console.log(chalk.cyan.bold('====== SUI RPC Balance Checker ======'));
 
