@@ -10,23 +10,31 @@ const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 // Hàm sleep để tạo độ trễ
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Hàm thực hiện yêu cầu faucet (hoặc RPC)
-async function requestFaucet(address) {
+// Hàm gửi yêu cầu RPC (kiểm tra số dư)
+async function requestRpc(address) {
   const ora = (await import('ora')).default;
-  const url = 'https://fullnode.testnet.sui.io:443'; // RPC URL mới
+  const url = 'https://fullnode.testnet.sui.io:443';
   const payload = {
-    FixedAmountRequest: {
-      recipient: address
-    }
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'sui_getBalance',
+    params: [address]
   };
   
-  const spinner = ora(`Đang gửi yêu cầu đến RPC...`).start();
+  const spinner = ora(`Đang kiểm tra số dư qua RPC...`).start();
   try {
     const response = await axios.post(url, payload, {
       timeout: 10000,
       headers: { 'Content-Type': 'application/json' }
     });
-    spinner.succeed(chalk.green(`Thành công: ${JSON.stringify(response.data)}`));
+
+    // Kiểm tra nếu phản hồi chứa lỗi JSON-RPC
+    if (response.data.error) {
+      spinner.fail(chalk.red(`Lỗi RPC: ${JSON.stringify(response.data.error)}`));
+      return false;
+    }
+
+    spinner.succeed(chalk.green(`Thành công: ${JSON.stringify(response.data.result)}`));
     return true;
   } catch (error) {
     if (error.response && error.response.status === 429) {
@@ -40,7 +48,7 @@ async function requestFaucet(address) {
 
 // Hàm chính với CLI
 async function main() {
-  console.log(chalk.cyan.bold('Chào mừng đến với SUI Faucet Tool!'));
+  console.log(chalk.cyan.bold('Chào mừng đến với SUI RPC Tool!'));
 
   const { address } = await inquirer.prompt([
     {
@@ -60,12 +68,12 @@ async function main() {
   }
   bar.stop();
 
-  const success = await requestFaucet(address);
+  const success = await requestRpc(address);
 
   if (success) {
-    console.log(chalk.green.bold('Hoàn tất! Kiểm tra ví của bạn.'));
+    console.log(chalk.green.bold('Hoàn tất! Đã lấy thông tin số dư.'));
   } else {
-    console.log(chalk.red.bold('Không thể hoàn thành yêu cầu.'));
+    console.log(chalk.red.bold('Không thể hoàn thành yêu cầu RPC.'));
   }
 }
 
