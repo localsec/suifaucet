@@ -1,80 +1,122 @@
-const fetch = require('node-fetch');
+const axios = require('axios');
 const HttpsProxyAgent = require('https-proxy-agent');
-const winston = require('winston');
-const fs = require('fs');
+const fs = require('fs').promises; // Sử dụng fs promises cho async/await
 
-// Config
-const ADDRESS = '0xYourWalletAddressHere';  // Thay ví vào đây
-const FAUCET_URL = 'https://faucet.testnet.sui.io/gas'; // Link faucet API
-const DELAY = 10 * 1000; // Delay mỗi lần claim (ms)
+// Configuration
+const config = {
+    faucetUrl: 'https://faucet.testnet.sui.io/gas',
+    interval: 10 * 1000, // 10 seconds
+    maxRetries: 3,
+    retryDelay: 2000 // 2 seconds
+};
 
-// Proxy list
-const proxies = fs.readFileSync('proxies.txt', 'utf-8')
-  .split('\n')
-  .filter(Boolean);
+// Hàm đọc và parse file text
+async function loadWallets() {
+    const data = await fs.readFile('wallets.txt', 'utf8');
+    return data.trim().split('\n').filter(line => line.trim());
+}
 
-// User-Agent list (random cho đẹp)
-const userAgents = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-  'Mozilla/5.0 (X11; Linux x86_64)',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-];
+async function loadProxies() {
+    const data = await fs.readFile('proxies.txt', 'utf8');
+    return data.trim().split('\n').filter(line => line.trim()).map(line => {
+        const [host, port, username, password] = line.split(':');
+        const proxy = { host, port: parseInt(port) };
+        if (username && password) {
+            proxy.auth = { username, password };
+        }
+        return proxy;
+    });
+}
 
-// Logger setup
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.simple(),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'faucet.log' }),
-  ],
+// Hàm chọn proxy ngẫu nhiên
+function getRandomProxy(proxyList) {
+    return proxyList[Math.floor(Math.random() * proxyList.length)];
+}
+
+// Hàm tạo axios instance với proxy
+function createAxiosInstance(proxy) {
+    const proxyUrl = proxy.auth 
+        ? `http://${proxy.auth.username}:${proxy.auth.password}@${proxy.host}:${proxy.port}`
+        : `http://${proxy.host}:${proxy.port}`;
+    
+    const proxyAgent = new HttpsProxyAgent(proxyUrl);
+    return axios.create({
+        httpsAgent: proxyAgent,
+        proxy: false,
+        timeout: 10000
+    });
+}
+
+// Hàm delay
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Hàm claim chính
+async function claimFaucet(walletAddress, proxyList) {
+    const proxy = getRandomProxy(proxyList);
+    let attempts = 0;
+    const timestamp = new Date().toISOString();
+
+    while (attempts < config.maxRetries) {
+        try {
+            const axiosInstance = createAxiosInstance(proxy);
+            const response = await axiosInstance.post(config.faucetUrl, { 
+                recipient: walletAddress 
+            });
+
+            if (response.status === 200) {
+                console.log(`[${timestamp}] Success via ${proxy.host}:${proxy.port} - Attempt ${attempts + 1}`, response.data);
+                return true;
+            } else {
+                console.log(`[${timestamp}] Failed via ${proxy.host}:${proxy.port} - Status: ${response.status}`);
+                return false;
+            }
+        } catch (error) {
+            attempts++;
+            const errorMsg = `[${timestamp}] Error via ${proxy.host}:${proxy.port} - Attempt ${attempts}: ${error.message}`;
+            console.error(errorMsg);
+
+            if (attempts < config.maxRetries) {
+                console.log(`[${timestamp}] Retrying in ${config.retryDelay/1000}s...`);
+                await delay(config.retryDelay);
+            } else {
+                console.error(`[${timestamp}] Max retries reached for ${proxy.host}:${proxy.port}`);
+                return false;
+            }
+        }
+    }
+}
+
+// Hàm chạy chính
+async function startClaiming() {
+    try {
+        const wallets = await loadWallets();
+        const proxyList = await loadProxies();
+
+        // Validate
+        if (wallets.length === 0 || !wallets[0].startsWith('0x')) {
+            console.error('No valid wallet addresses found in wallets.txt');
+            return;
+        }
+
+        if (proxyList.length === 0) {
+            console.error('No proxies found in proxies.txt');
+            return;
+        }
+
+        const walletAddress = wallets[0]; // Hiện tại chỉ dùng wallet đầu tiên
+        console.log(`[${new Date().toISOString()}] Starting faucet claim for ${walletAddress}`);
+
+        setInterval(async () => {
+            await claimFaucet(walletAddress, proxyList);
+        }, config.interval);
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error loading files:`, error.message);
+    }
+}
+
+// Xử lý lỗi chưa bắt được và chạy chương trình
+process.on('unhandledRejection', (error) => {
+    console.error(`[${new Date().toISOString()}] Unhandled error:`, error.message);
 });
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function claimFaucet(proxy) {
-  try {
-    const agent = proxy ? new HttpsProxyAgent(proxy) : undefined;
-    const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-
-    const res = await fetch(FAUCET_URL, {
-      method: 'POST',
-      agent,
-      body: JSON.stringify({ recipient: ADDRESS }),
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': userAgent,
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    if (data.error) {
-      throw new Error(`Faucet Error: ${data.error}`);
-    }
-
-    logger.info(`Claim success: ${JSON.stringify(data)}`);
-  } catch (err) {
-    logger.error(`Claim failed: ${err.message}`);
-  }
-}
-
-async function main() {
-  while (true) {
-    const proxy = proxies.length > 0
-      ? proxies[Math.floor(Math.random() * proxies.length)]
-      : undefined;
-
-    logger.info(`Claiming faucet with proxy: ${proxy || 'No Proxy'}`);
-    await claimFaucet(proxy);
-    await sleep(DELAY);
-  }
-}
-
-main();
+startClaiming();
